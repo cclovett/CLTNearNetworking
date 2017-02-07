@@ -13,22 +13,23 @@ public class CLTNNReceiveDataReader: NSObject {
     lazy var pData = NSMutableData.init()
     private lazy var pReadDataIndex: Int = 0
     
-    public func fReadInt() -> Int {
+    public func fReadInt32() -> Int32 {
         
         var range = NSRange.init()
         range.location = self.pReadDataIndex;
-        range.length = MemoryLayout.size(ofValue: Int.init())
+        range.length = MemoryLayout.size(ofValue: Int32())
         self.pReadDataIndex += range.length
-        var i: Int = 0
-        self.pData .getBytes(&i, range: range)
+        var i: Int32 = 0
+        self.pData.getBytes(&i, range: range)
         return i
     }
     
     public func fReadString() -> String {
         
-        let lenght = self.fReadInt()
-        let range = NSRange.init(location: self.pReadDataIndex, length: lenght)
-        let chunk = Data.init(bytes: self.pData.bytes + self.pReadDataIndex, count: range.length)
+        let lenght = self.fReadInt32()
+        let range = NSRange.init(location: self.pReadDataIndex, length: Int(lenght))
+        self.pReadDataIndex += range.length
+        let chunk = Data.init(bytes: self.pData.bytes + range.location, count: range.length)
         let str = String.init(data: chunk, encoding: String.Encoding.utf8)
         return str!
     }

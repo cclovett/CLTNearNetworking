@@ -11,20 +11,26 @@ import CoreBluetooth
 
 public class CLTNNBluetoothServerService: CLTNNServerNetworkNode {
 
-    fileprivate let pCharacteristicUUID: CBUUID
     fileprivate let pServiceUUID: CBUUID
+    fileprivate let pCharacteristicUUID: CBUUID
+    fileprivate let pCharacteristicWriteUUID: CBUUID
     fileprivate let pMaxConnections: Int
     
     fileprivate var pCentralManager: CBCentralManager? = nil
     fileprivate var pPeripheral: CBPeripheral? = nil
     fileprivate var pCharacteristic: CBCharacteristic? = nil
+    fileprivate var pCharacteristicRR: CBCharacteristic? = nil
 
+    /// 这个是正在发送的对象，当有值时就开始发送它，如果它为nil表示已经完成
+    fileprivate var pSendDataWriter: CLTNNSendDataWriter? = nil
+    /// 收到的消息
     fileprivate var pReceiveDataReader: CLTNNReceiveDataReader? = nil
     
-    public init(serviceUUID: CBUUID, characteristicUUID: CBUUID, maxConnections:Int) {
+    public init(serviceUUID: CBUUID, characteristicUUID: CBUUID, charachteristicWriteUUID: CBUUID, maxConnections:Int) {
         
         self.pServiceUUID = serviceUUID
         self.pCharacteristicUUID = characteristicUUID
+        self.pCharacteristicWriteUUID = charachteristicWriteUUID
         self.pMaxConnections = maxConnections
         
         super.init()
@@ -47,20 +53,30 @@ public class CLTNNBluetoothServerService: CLTNNServerNetworkNode {
         
         if self.pCentralManager != nil {
             
+            if let pP = self.pPeripheral {
+            
+                self.pCentralManager?.cancelPeripheralConnection(pP)
+            }
+            
             self.pCentralManager?.stopScan()
             self.pCentralManager?.delegate = nil
             self.pCentralManager = nil
         }
         
-        if self.pPeripheral != nil {
-            
-            self.pPeripheral?.delegate = nil
-            self.pPeripheral = nil
-        }
+        self.fReleasePeripheral()
         
         if self.pCharacteristic != nil {
             
             self.pCharacteristic = nil
+        }
+    }
+    
+    fileprivate func fReleasePeripheral() {
+        
+        if self.pPeripheral != nil {
+            
+            self.pPeripheral?.delegate = nil
+            self.pPeripheral = nil
         }
     }
     
@@ -75,8 +91,85 @@ public class CLTNNBluetoothServerService: CLTNNServerNetworkNode {
     }
     
     override func fOnSendMsgToOther(writer: CLTNNSendDataWriter) {
+       
+        self.pSendDataWriter = writer
+        self.fSendData()
+//        writer.pSendState = .eSendEnd
+        
+//        print("\(self.pCharacteristicRR?.properties)  \(CBCharacteristicProperties.writeWithoutResponse)")
+//        if self.pCharacteristicRR?.properties == .writeWithoutResponse {
         
         
+//        let dd = "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss".data(using: String.Encoding.utf8)
+//        self.pPeripheral?.writeValue(dd!, for: self.pCharacteristicRR!, type: CBCharacteristicWriteType.withResponse)
+//        print("[Server] 发送 \(dd)")
+//        
+//        let ddd = "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww".data(using: String.Encoding.utf8)
+//        self.pPeripheral?.writeValue(ddd!, for: self.pCharacteristicRR!, type: CBCharacteristicWriteType.withResponse)
+//        print("[Server] 发送 \(ddd)")
+//        }
+        
+        
+    }
+    
+    func fSendStartDataMsg() {
+        
+        if self.pSendDataWriter?.pSendState == .eBeginSendHead {
+            
+            let sData = "S|".data(using: String.Encoding.utf8)!
+            self.pPeripheral?.writeValue(sData, for: self.pCharacteristicRR!, type: CBCharacteristicWriteType.withResponse)
+            
+            self.pSendDataWriter?.pSendState = .eBeginSendBody
+        }
+    }
+    
+    func fSendEndDataMsg() {
+        
+        if self.pSendDataWriter?.pSendState == .eBeginSendEnd {
+            
+            let sData = "|E".data(using: String.Encoding.utf8)!
+            self.pPeripheral?.writeValue(sData, for: self.pCharacteristicRR!, type: CBCharacteristicWriteType.withResponse)
+            
+            self.pSendDataWriter?.pSendState = .eSendEnd
+            self.pDelegate?.dgClient_EndSendMsgToServer(writer: self.pSendDataWriter!)
+            self.pSendDataWriter = nil
+        }
+    }
+    
+    func fSendData() {
+        
+        if let sendDataWriter = self.pSendDataWriter {
+        
+            self.fSendStartDataMsg()
+            
+            // send body
+            if sendDataWriter.pSendState == .eBeginSendBody {
+                
+                while true {
+                    
+                    var amountToSend = sendDataWriter.pData.length - sendDataWriter.pSendDataIndex
+                    
+                    if amountToSend > 32 {
+                        
+                        amountToSend = 32
+                    }
+                    
+                    let chunk = Data.init(bytes: sendDataWriter.pData.bytes + sendDataWriter.pSendDataIndex, count: amountToSend)
+                    
+                    self.pPeripheral?.writeValue(chunk, for: self.pCharacteristicRR!, type: CBCharacteristicWriteType.withResponse)
+                    
+                    sendDataWriter.pSendDataIndex += amountToSend
+                    
+                    if sendDataWriter.pSendDataIndex >= sendDataWriter.pData.length {
+                        
+                        sendDataWriter.pSendState = .eBeginSendEnd
+                        break
+                    }
+                }
+            }
+            
+            self.fSendEndDataMsg()
+        }
     }
 }
 
@@ -87,10 +180,10 @@ extension CLTNNBluetoothServerService: CBCentralManagerDelegate {
         
         switch central.state {
         case .poweredOn:
-            
+            print("[Server] 启动搜索")
             self.pCentralManager?.scanForPeripherals(withServices: [self.pServiceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
         default:
-            print("[Client] 此设备不支持 BLE 4.0")
+            print("[Server] 此设备不支持 BLE 4.0")
             break
         }
     }
@@ -98,11 +191,18 @@ extension CLTNNBluetoothServerService: CBCentralManagerDelegate {
     // 成功连接
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         // 发现服务
+        print("[Server] 成功连接到 peripheral   开始搜索服务")
         self.pPeripheral = peripheral
         self.pPeripheral?.delegate = self
         self.pPeripheral?.discoverServices([self.pServiceUUID])
+    }
+    
+    public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         
+        print("[Server] 连接丢失")
+        self.fReleasePeripheral()
         
+        self.centralManagerDidUpdateState(central)
     }
     
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
@@ -115,25 +215,17 @@ extension CLTNNBluetoothServerService: CBCentralManagerDelegate {
         else {
             
             self.pPeripheral = peripheral
+            print("[Server] 找到 peripheral  开始连接")
             central.connect(peripheral, options: nil)
-//            central.connect(peripheral, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
-            
-//            let dd = Data.init(bytes: [1])
-//            peripheral.writeValue(dd, for: self.pCharacteristic!, type: CBCharacteristicWriteType.withResponse)
         }
-        
-
     }
-    
-    
-    
+   
     public func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         
-        if self.pPeripheral != nil {
-            
-            self.pPeripheral?.delegate = nil
-            self.pPeripheral = nil
-        }
+        print("连接失败")
+        self.fReleasePeripheral()
+        
+        self.centralManagerDidUpdateState(central)
     }
 }
 
@@ -150,6 +242,7 @@ extension CLTNNBluetoothServerService: CBPeripheralDelegate {
             
             if peripheral.services == nil{
                 
+                assert(false)
                 return
             }
             
@@ -157,7 +250,8 @@ extension CLTNNBluetoothServerService: CBPeripheralDelegate {
                 
                 if service.uuid == self.pServiceUUID && peripheral == self.pPeripheral {
                     
-                    peripheral.discoverCharacteristics([self.pCharacteristicUUID], for: service)
+                    print("[Server] 一个一个响应 peripheral 的服务")
+                    peripheral.discoverCharacteristics(nil, for: service)
                 }
             }
         }
@@ -175,6 +269,7 @@ extension CLTNNBluetoothServerService: CBPeripheralDelegate {
                 
                 if service.characteristics == nil {
                     
+                    assert(false)
                     return
                 }
                 
@@ -182,8 +277,14 @@ extension CLTNNBluetoothServerService: CBPeripheralDelegate {
                 
                     if characteristic.uuid == self.pCharacteristicUUID {
                         
+                        print("[Server] 服务已经加载上   \(characteristic)")
                         self.pCharacteristic = characteristic
                         peripheral.setNotifyValue(true, for: characteristic)
+                    }
+                    if characteristic.uuid == self.pCharacteristicWriteUUID {
+                        
+                        print("[Server] 服务已经加载上   \(characteristic)")
+                        self.pCharacteristicRR = characteristic
                     }
                 }
             }
@@ -217,7 +318,8 @@ extension CLTNNBluetoothServerService: CBPeripheralDelegate {
                 self.pReceiveDataReader = CLTNNReceiveDataReader.init()
             }
             else if str == "|E" {
-                
+               
+                self.pReceiveDataReader?.fReadInt32()
                 self.pDelegate?.dgServer_ReceiveMsgFromClient(reader: self.pReceiveDataReader!)
             }
             else if datas.count > 0 {
@@ -229,5 +331,7 @@ extension CLTNNBluetoothServerService: CBPeripheralDelegate {
     
     public func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {
         
+        print("[Server] didModifyServices")
+        self.fStartListening()
     }
 }

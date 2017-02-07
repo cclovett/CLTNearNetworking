@@ -32,10 +32,11 @@ public class CLTNNSendDataWriter: NSObject {
     lazy var pData = NSMutableData.init()
     lazy var pSendState:eCLTNNSendDataWriterState = .eInit
     
-    public func fWriteInt(_ source: Int) {
+    public func fWriteInt32(_ source: Int32) {
         
         var ss = source
-        self.pData .append(&ss, length: MemoryLayout.size(ofValue: source))
+        let len = MemoryLayout.size(ofValue: source)
+        self.pData.append(&ss, length: len)
     }
     
     public func fWriteString(_ source: String) {
@@ -43,7 +44,7 @@ public class CLTNNSendDataWriter: NSObject {
         let tmpD = source.data(using: String.Encoding.utf8)
         let count = tmpD?.count
         
-        self.fWriteInt(count!)
-        self.pData .append(tmpD!)
+        self.fWriteInt32(Int32(count!))
+        self.pData.append(tmpD!)
     }
 }

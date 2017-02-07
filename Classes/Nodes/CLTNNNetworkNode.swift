@@ -14,10 +14,7 @@ public protocol CLTNNNetworkNodeDelegate: NSObjectProtocol {
     
     func dgServer_ReceiveMsgFromClient(reader: CLTNNReceiveDataReader)
     
-    
     func dgNode_Connected()
-//    optional
-    
 }
 
 public class CLTNNNetworkNode: NSObject {
@@ -25,15 +22,16 @@ public class CLTNNNetworkNode: NSObject {
     public weak var  pDelegate: CLTNNNetworkNodeDelegate?
     
     private lazy var pArrDataPackages = NSMutableArray.init()
-//    var pSendDataWriter: CLTNNSendDataWriter? = nil
-//    var pReceiveDataReader: CLTNNReceiveDataReader? = nil
-
-    public func fBeginMsg(identifier: Int, block: (_ writer: CLTNNSendDataWriter)->Void) {
+   
+    private let mLock = NSConditionLock.init()
+    
+    public func fBeginMsg(identifier: Int32, block: (_ writer: CLTNNSendDataWriter)->Void) {
         
         let wri = CLTNNSendDataWriter.init()
-        wri.fWriteInt(identifier)
+        wri.fWriteInt32(identifier)
         block(wri)
         self.pArrDataPackages.add(wri)
+        self.fSendAllMsg()
     }
     
     func fSendAllMsg() {
@@ -48,7 +46,8 @@ public class CLTNNNetworkNode: NSObject {
                     writer.pSendState = .eBeginSendHead
                     self.fOnSendMsgToOther(writer: writer)
                 }
-                else if (writer.pSendState == .eSendEnd) {
+                
+                if (writer.pSendState == .eSendEnd) {
                     
                     self.pArrDataPackages.remove(writer)
                     self.fSendAllMsg()
@@ -61,6 +60,7 @@ public class CLTNNNetworkNode: NSObject {
         
         // 子类实现
         assert(false)
+        writer.pSendState = .eSendEnd
     }
 }
 
