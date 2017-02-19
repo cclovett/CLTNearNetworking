@@ -12,7 +12,7 @@ public protocol CLTNNNetworkNodeDelegate: NSObjectProtocol {
     
     func dgClient_EndSendMsgToServer(writer: CLTNNSendDataWriter)
     
-    func dgServer_ReceiveMsgFromClient(reader: CLTNNReceiveDataReader)
+    func dgServer_ReceiveMsgFromClient(identifier: Int32, reader: CLTNNReceiveDataReader)
     
     func dgNode_Connected()
 }

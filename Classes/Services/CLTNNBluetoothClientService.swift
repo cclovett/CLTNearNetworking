@@ -24,6 +24,8 @@ public class CLTNNBluetoothClientService: CLTNNClientNetworkNode {
     /// 收到的消息
     fileprivate var pReceiveDataReader: CLTNNReceiveDataReader? = nil
     
+    let kLenSize = 64
+    
     public init(serviceUUID: CBUUID, characteristicUUID: CBUUID, characteristicWriteUUID: CBUUID) {
         
         self.pServiceUUID = serviceUUID
@@ -136,9 +138,9 @@ public class CLTNNBluetoothClientService: CLTNNClientNetworkNode {
                 // Work out how big it should be
                 var amountToSend = self.pSendDataWriter!.pData.length - self.pSendDataWriter!.pSendDataIndex
                 // Can't be longer than 32 bytes
-                if amountToSend > 32 {
+                if amountToSend > kLenSize {
                     
-                    amountToSend = 32
+                    amountToSend = kLenSize
                 }
                 // Copy out the data we want
                 let chunk = Data.init(bytes: self.pSendDataWriter!.pData.bytes + self.pSendDataWriter!.pSendDataIndex, count: amountToSend)
@@ -232,7 +234,7 @@ extension CLTNNBluetoothClientService: CBPeripheralManagerDelegate {
         
             if requ.characteristic.uuid == self.pCharacteristicWriteUUID {
                 
-//                print("[Client] 收到 \(requ.value)")
+                print("[Client] 收到 \(requ.value)")
                 
                 if let datas = requ.value {
                     
@@ -244,8 +246,7 @@ extension CLTNNBluetoothClientService: CBPeripheralManagerDelegate {
                     }
                     else if str == "|E" {
                         
-                        self.pReceiveDataReader?.fReadInt32()
-                        self.pDelegate?.dgServer_ReceiveMsgFromClient(reader: self.pReceiveDataReader!)
+                        self.pDelegate?.dgServer_ReceiveMsgFromClient(identifier: self.pReceiveDataReader!.fReadInt32(), reader: self.pReceiveDataReader!)
                     }
                     else if datas.count > 0 {
                         

@@ -39,12 +39,18 @@ public class CLTNNSendDataWriter: NSObject {
         self.pData.append(&ss, length: len)
     }
     
+    public func fWriteData(_ source: Data) {
+        
+        let count = source.count
+        
+        self.fWriteInt32(Int32(count))
+        self.pData.append(source)
+    }
+    
     public func fWriteString(_ source: String) {
        
         let tmpD = source.data(using: String.Encoding.utf8)
-        let count = tmpD?.count
-        
-        self.fWriteInt32(Int32(count!))
-        self.pData.append(tmpD!)
+
+        self.fWriteData(tmpD!)
     }
 }

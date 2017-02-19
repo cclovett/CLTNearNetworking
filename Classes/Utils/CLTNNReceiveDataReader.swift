@@ -24,12 +24,18 @@ public class CLTNNReceiveDataReader: NSObject {
         return i
     }
     
-    public func fReadString() -> String {
+    public func fReadData() -> Data {
         
         let lenght = self.fReadInt32()
         let range = NSRange.init(location: self.pReadDataIndex, length: Int(lenght))
         self.pReadDataIndex += range.length
         let chunk = Data.init(bytes: self.pData.bytes + range.location, count: range.length)
+        return chunk
+    }
+    
+    public func fReadString() -> String {
+        
+        let chunk = self.fReadData()
         let str = String.init(data: chunk, encoding: String.Encoding.utf8)
         return str!
     }

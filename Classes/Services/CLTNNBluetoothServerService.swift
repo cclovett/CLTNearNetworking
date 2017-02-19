@@ -26,6 +26,8 @@ public class CLTNNBluetoothServerService: CLTNNServerNetworkNode {
     /// 收到的消息
     fileprivate var pReceiveDataReader: CLTNNReceiveDataReader? = nil
     
+    let kLenSize = 64
+    
     public init(serviceUUID: CBUUID, characteristicUUID: CBUUID, charachteristicWriteUUID: CBUUID, maxConnections:Int) {
         
         self.pServiceUUID = serviceUUID
@@ -149,9 +151,9 @@ public class CLTNNBluetoothServerService: CLTNNServerNetworkNode {
                     
                     var amountToSend = sendDataWriter.pData.length - sendDataWriter.pSendDataIndex
                     
-                    if amountToSend > 32 {
+                    if amountToSend > kLenSize {
                         
-                        amountToSend = 32
+                        amountToSend = kLenSize
                     }
                     
                     let chunk = Data.init(bytes: sendDataWriter.pData.bytes + sendDataWriter.pSendDataIndex, count: amountToSend)
@@ -287,6 +289,8 @@ extension CLTNNBluetoothServerService: CBPeripheralDelegate {
                         self.pCharacteristicRR = characteristic
                     }
                 }
+                
+                self.pDelegate?.dgNode_Connected()
             }
         }
     }
@@ -319,8 +323,7 @@ extension CLTNNBluetoothServerService: CBPeripheralDelegate {
             }
             else if str == "|E" {
                
-                self.pReceiveDataReader?.fReadInt32()
-                self.pDelegate?.dgServer_ReceiveMsgFromClient(reader: self.pReceiveDataReader!)
+                self.pDelegate?.dgServer_ReceiveMsgFromClient(identifier: self.pReceiveDataReader!.fReadInt32(), reader: self.pReceiveDataReader!)
             }
             else if datas.count > 0 {
                 
